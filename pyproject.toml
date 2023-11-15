@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "ytpa-api-utils"
+version = "0.1.0"
+description = "API utils for the YouTube Predictive Analytics system"
+authors = ["Johannes Traa"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11.5"
+pandas = "^2.0.3"
+
+[tool.poetry.dev-dependencies]
+pytest = "^7.4.3"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

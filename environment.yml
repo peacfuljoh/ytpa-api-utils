@@ -1,0 +1,17 @@
+name: ytpa_api_utils
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11.5
+  - pandas=2.0.3
+  - fastapi=0.103.1
+  - pytest=7.1.2
+  - coverage=7.2.2
+  - pip=23.2.1
+  - poetry=1.4.0
+  - pip:
+      - websockets==11.0.3
+      - ytpa-utils==0.1.7
+      - db-engines==0.1.10
+prefix: /home/nuc/miniconda3/envs/ytpa_api_utils

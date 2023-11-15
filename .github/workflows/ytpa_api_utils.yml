@@ -1,0 +1,26 @@
+name: ytpa_api_utils-CI
+run-name: ${{ github.actor }} is validating the ytpa_api_utils repo
+on: [push]
+jobs:
+  test-and-deploy:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v3
+      - run: cd /home/runner/work/ytpa_api_utils/ytpa_api_utils
+      - name: setup env vars
+        run: make build-gha
+      - name: setup conda env
+        uses: conda-incubator/setup-miniconda@v2
+        with:
+          activate-environment: ytpa_api_utils
+          environment-file: environment.yml
+          auto-activate-base: false
+      - name: run tests
+        run: make test-gha
+        env:
+          PYTHONPATH: ${{ env.PYTHONPATH }}
+      - name: publish to PyPI
+        run: make publish
+        env:
+          PYPI_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
