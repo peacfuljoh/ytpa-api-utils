@@ -1,0 +1,22 @@
+
+from typing import Optional, List
+import requests
+import json
+
+
+def get_configs_post(endpoint: str,
+                     collection: str,
+                     config_name: Optional[str] = None) \
+        -> List[dict]:
+    """
+    Get config info for a data collection and optionally verify that a given config name exists in the list of configs.
+    """
+    response = requests.post(endpoint, json=dict(name=collection))
+    recs = json.loads(response.text)
+
+    if config_name is not None:
+        config_ids = [config_['_id'] for config_ in recs]
+        assert config_name in config_ids
+
+    return recs
+
