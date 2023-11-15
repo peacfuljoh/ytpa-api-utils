@@ -114,7 +114,8 @@ async def receive_msgs(websocket: websockets.connect,
 
 async def stream_dfs_websocket(endpoint: str,
                                msg_to_send: dict,
-                               q: asyncio.Queue):
+                               q: asyncio.Queue,
+                               wait_between_requests: bool = False):
     """Stream data into a queue of DataFrames over a websocket."""
     msg_to_send_str = json.dumps(msg_to_send)
     async with websockets.connect(endpoint) as websocket:
@@ -122,6 +123,9 @@ async def stream_dfs_websocket(endpoint: str,
             while 1:
                 await websocket.send(msg_to_send_str)
                 await receive_msgs(websocket, q)
+                if wait_between_requests:
+                    while not q.empty():
+                        await asyncio.sleep(0.001)
         except Exception as e:
             print(e)
             await q.put(None)
@@ -153,7 +157,8 @@ async def process_dfs_stream(q_stream: asyncio.Queue,
 def run_dfs_stream_with_options(endpoint: str,
                                 msg_to_send: dict,
                                 df_processor: Callable,
-                                q_stream: asyncio.Queue):
+                                q_stream: asyncio.Queue,
+                                wait_between_requests: bool = False):
     """
     Simultaneously stream data from an API endpoint through a websocket and process it.
 
@@ -165,6 +170,9 @@ def run_dfs_stream_with_options(endpoint: str,
     async def run_tasks():
         async with asyncio.TaskGroup() as tg:
             tg.create_task(df_processor(q_stream))
-            tg.create_task(stream_dfs_websocket(endpoint, msg_to_send, q_stream))
+            tg.create_task(stream_dfs_websocket(endpoint,
+                                                msg_to_send,
+                                                q_stream,
+                                                wait_between_requests=wait_between_requests))
     asyncio.run(run_tasks())
 
