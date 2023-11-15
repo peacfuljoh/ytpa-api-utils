@@ -7,7 +7,7 @@ jobs:
     steps:
       - name: checkout code
         uses: actions/checkout@v3
-      - run: cd /home/runner/work/ytpa_api_utils/ytpa_api_utils
+      - run: cd /home/runner/work/ytpa-api-utils/ytpa-api-utils
       - name: setup env vars
         run: make build-gha
       - name: setup conda env
