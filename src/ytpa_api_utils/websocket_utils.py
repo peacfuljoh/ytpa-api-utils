@@ -5,7 +5,6 @@ import json
 from typing import List, Union, Optional, Callable
 
 import websockets
-
 import pandas as pd
 from fastapi import WebSocket, WebSocketDisconnect
 
@@ -155,11 +154,17 @@ def run_dfs_stream_with_options(endpoint: str,
                                 msg_to_send: dict,
                                 df_processor: Callable,
                                 q_stream: asyncio.Queue):
-    """Simultaneously stream data through websocket and process it."""
+    """
+    Simultaneously stream data from an API endpoint through a websocket and process it.
+
+    endpoint: url to connect to
+    msg_to_send: the request body to send
+    df_processor: coroutine that processes the DataFrames as they are placed in the queue
+    q_stream: asyncio Queue to use for storing DataFrames
+    """
     async def run_tasks():
         async with asyncio.TaskGroup() as tg:
             tg.create_task(df_processor(q_stream))
             tg.create_task(stream_dfs_websocket(endpoint, msg_to_send, q_stream))
     asyncio.run(run_tasks())
-
 
