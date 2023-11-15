@@ -2,10 +2,11 @@ SHELL = /bin/bash
 CONDA_ACTIVATE = source $$(conda info --base)/etc/profile.d/conda.sh ; conda activate ; conda activate
 
 REPO_NAME_ = ytpa_api_utils
+REPO_NAME_GHA_ = ytpa-api-utils
 
 REPO_ROOT_ = /home/nuc/$(REPO_NAME_)
 BB_ROOT_ = $(REPO_ROOT_)
-REPO_ROOT_GHA_ = /home/runner/work/$(REPO_NAME_)/$(REPO_NAME_)
+REPO_ROOT_GHA_ = /home/runner/work/$(REPO_NAME_GHA_)/$(REPO_NAME_GHA_)
 BB_ROOT_GHA_ = $(REPO_ROOT_GHA_)
 
 ACT_ENV = $(CONDA_ACTIVATE) $(REPO_NAME_)
