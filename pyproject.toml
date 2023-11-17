@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ytpa-api-utils"
-version = "0.1.3"
+version = "0.1.4"
 description = "API utils for the YouTube Predictive Analytics system"
 authors = ["Johannes Traa"]
 license = "MIT"

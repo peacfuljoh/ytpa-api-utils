@@ -61,7 +61,7 @@ async def send_df_via_websocket(df: pd.DataFrame,
         # apply transformations to specified columns
         if transformations is not None:
             cnvs = {key: val for key, val in transformations.items() if key in df_.columns}
-            df_dt_codec(df_, cnvs, 'encode')  # make it JSONifiable
+            df_dt_codec(df_, cnvs)  # make it JSONifiable
 
         # pack DataFrame into list of dictionaries
         data_send: List[dict] = df_.to_dict('records')
@@ -232,10 +232,41 @@ def run_dfs_stream_with_options(endpoint: str,
                                                 max_qsize=max_qsize))
     asyncio.run(run_tasks())
 
+# def df_generator_ws(endpoint: str,
+#                     msg_to_send: dict) \
+#         -> Generator[pd.DataFrame, None, None]:
+#     """Wrapper for websocket-based DataFrame generator"""
+#     q_gen = queue.Queue()
+#
+#     # spin up websocket thread with between-queue handoff process
+#     async def df_processor(q_stream_: asyncio.Queue):
+#         """Pass DataFrames from asynchronous to synchronous queues."""
+#         while 1:
+#             df = await q_stream_.get()
+#             q_gen.put(df)
+#             if df is None:
+#                 return
+#
+#     q_stream = asyncio.Queue()
+#     df_gen_thread = Thread(
+#         target=run_dfs_stream_with_options,
+#         daemon=True,
+#         args=(endpoint, msg_to_send, df_processor, q_stream, 5)
+#     )
+#     df_gen_thread.start()
+#
+#     # initiate DataFrame generator
+#     df_gen = df_gen_from_queue(q_gen)
+#
+#     return df_gen
+
 def df_generator_ws(endpoint: str,
-                    msg_to_send: dict) \
+                    msg_to_send: dict,
+                    transformations: Optional[dict] = None) \
         -> Generator[pd.DataFrame, None, None]:
     """Wrapper for websocket-based DataFrame generator"""
+    max_qsize = 5
+
     q_gen = queue.Queue()
 
     # spin up websocket thread with between-queue handoff process
@@ -243,15 +274,20 @@ def df_generator_ws(endpoint: str,
         """Pass DataFrames from asynchronous to synchronous queues."""
         while 1:
             df = await q_stream_.get()
+            if df is not None and transformations is not None:
+                cnvs = {key: val for key, val in transformations.items() if key in df.columns}
+                df_dt_codec(df, cnvs)
             q_gen.put(df)
             if df is None:
                 return
+            while q_gen.qsize() >= max_qsize: # TODO
+                await asyncio.sleep(0.01)  # TODO
 
     q_stream = asyncio.Queue()
     df_gen_thread = Thread(
         target=run_dfs_stream_with_options,
         daemon=True,
-        args=(endpoint, msg_to_send, df_processor, q_stream, 5)
+        args=(endpoint, msg_to_send, df_processor, q_stream, max_qsize)
     )
     df_gen_thread.start()
 
@@ -259,5 +295,4 @@ def df_generator_ws(endpoint: str,
     df_gen = df_gen_from_queue(q_gen)
 
     return df_gen
-
 
