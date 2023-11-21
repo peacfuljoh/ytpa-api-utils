@@ -37,4 +37,4 @@ WS_DFS_TESTING = [
     pd.DataFrame(dict(a=[10, 11, 12, 13], b=[17, 18, 19, 20]))
 ]
 
-DF_GEN_QUEUE = queue.Queue()
+DF_GEN_QUEUE_TESTING = queue.Queue()

@@ -13,15 +13,13 @@ from fastapi import WebSocket, WebSocketDisconnect
 
 from ytpa_utils.df_utils import df_dt_codec
 
-from .constants import WS_STREAM_TERM_MSG, WS_MAX_RECORDS_SEND, DF_GEN_QUEUE
-from .misc_utils import df_gen_from_queue
-
-
+from .constants import WS_STREAM_TERM_MSG, WS_MAX_RECORDS_SEND
+from .misc_utils import df_gen_from_queue, wait_on_qsize
 
 TESTING = os.environ.get('RUN_API_TESTS') == 'yes'
 
 if TESTING:
-    from .constants import WS_RECORDS_TESTING, WS_DFS_TESTING
+    from .constants import WS_RECORDS_TESTING, WS_DFS_TESTING, DF_GEN_QUEUE_TESTING
 
     def rec_gen_test():
         for df in WS_RECORDS_TESTING:
@@ -36,8 +34,7 @@ if TESTING:
 
 
 
-
-""" SEND """
+""" General-purpose methods """
 async def gen_next_records(gen, websocket: WebSocket):
     """
     Get next record from a generator if possible, otherwise send stream termination signal and shut down websocket.
@@ -49,7 +46,7 @@ async def gen_next_records(gen, websocket: WebSocket):
         if not TESTING:
             await websocket.send_json(WS_STREAM_TERM_MSG)
         else:
-            DF_GEN_QUEUE.put(WS_STREAM_TERM_MSG)
+            DF_GEN_QUEUE_TESTING.put(WS_STREAM_TERM_MSG)
         raise WebSocketDisconnect
 
 async def send_df_via_websocket(df: pd.DataFrame,
@@ -70,7 +67,7 @@ async def send_df_via_websocket(df: pd.DataFrame,
         if not TESTING:
             await websocket.send_json(data_send)
         else:
-            DF_GEN_QUEUE.put(data_send)
+            DF_GEN_QUEUE_TESTING.put(data_send)
 
         # increment pointer
         i += 1
@@ -79,11 +76,16 @@ async def send_df_via_websocket(df: pd.DataFrame,
     if not TESTING:
         await websocket.send_json([])
     else:
-        DF_GEN_QUEUE.put([])
+        DF_GEN_QUEUE_TESTING.put([])
 
-async def run_websocket_stream(websocket: WebSocket,
-                               setup_df_gen: Callable,
-                               transformations: Optional[dict] = None):
+
+
+
+
+""" Send DataFrames over websocket """
+async def run_websocket_stream_server(websocket: WebSocket,
+                                      setup_df_gen: Callable,
+                                      transformations: Optional[dict] = None):
     """
     Run websocket stream that generates DataFrames.
 
@@ -113,8 +115,7 @@ async def run_websocket_stream(websocket: WebSocket,
 
 
 
-
-""" RECEIVE """
+""" Client-side (generate DataFrames through websocket) """
 async def get_next_msg(websocket: websockets.connect) -> Optional[List[dict]]:
     """Receive next message over websocket"""
     # receive data
@@ -150,15 +151,17 @@ async def receive_msgs(websocket: websockets.connect,
             await q.put(df)
             return
 
-async def stream_dfs_websocket_test(q: asyncio.Queue,
-                                    max_qsize: Optional[int] = None):
+async def stream_dfs_websocket_subfunc(q: asyncio.Queue,
+                                       websocket: Optional[WebSocket] = None,
+                                       msg_to_send_str: Optional[str] = None,
+                                       max_qsize: Optional[int] = None):
     """Testing branch for stream_dfs_websocket()."""
     try:
         while 1:
-            await receive_msgs(None, q)
-            if max_qsize is not None:
-                while q.qsize() >= max_qsize:
-                    await asyncio.sleep(0.01)
+            if not TESTING:
+                await websocket.send(msg_to_send_str)
+            await receive_msgs(websocket, q)
+            await wait_on_qsize(q, max_qsize)
     except Exception as e:
         print(e)
         await q.put(None)
@@ -167,47 +170,16 @@ async def stream_dfs_websocket(endpoint: str,
                                msg_to_send: dict,
                                q: asyncio.Queue,
                                max_qsize: Optional[int] = None):
-    """Stream data into a queue of DataFrames over a websocket."""
+    """Stream DataFrames through a websocket into a queue."""
     if TESTING:
-        await stream_dfs_websocket_test(q, max_qsize=max_qsize)
-        return
-
-    msg_to_send_str = json.dumps(msg_to_send)
-    async with websockets.connect(endpoint) as websocket:
-        try:
-            while 1:
-                await websocket.send(msg_to_send_str)
-                await receive_msgs(websocket, q)
-                if max_qsize is not None:
-                    while q.qsize() >= max_qsize:
-                        await asyncio.sleep(0.01)
-        except Exception as e:
-            print(e)
-            await q.put(None)
-
-async def process_dfs_stream(q_stream: asyncio.Queue,
-                             options: Optional[dict] = None):
-    """Process DataFrames from a queue until a None is found"""
-    # options
-    if options is None:
-        options = {}
-    print_dfs = options.get('print_df')
-    print_count = options.get('print_count')
-    q_stats = options.get('q_stats')
-
-    # process stream
-    count = 0
-    while 1:
-        df = await q_stream.get()
-        if df is None:
-            return
-        count += len(df)
-        if print_dfs:
-            print(df)
-        if print_count:
-            print(f"Records count so far: {count}.")
-        if q_stats:
-            q_stats.put({'count': count})
+        await stream_dfs_websocket_subfunc(q, max_qsize=max_qsize)
+    else:
+        msg_to_send_str = json.dumps(msg_to_send)
+        async with websockets.connect(endpoint) as websocket:
+            await stream_dfs_websocket_subfunc(q,
+                                               websocket=websocket,
+                                               msg_to_send_str=msg_to_send_str,
+                                               max_qsize=max_qsize)
 
 def run_dfs_stream_with_options(endpoint: str,
                                 msg_to_send: dict,
@@ -232,34 +204,6 @@ def run_dfs_stream_with_options(endpoint: str,
                                                 max_qsize=max_qsize))
     asyncio.run(run_tasks())
 
-# def df_generator_ws(endpoint: str,
-#                     msg_to_send: dict) \
-#         -> Generator[pd.DataFrame, None, None]:
-#     """Wrapper for websocket-based DataFrame generator"""
-#     q_gen = queue.Queue()
-#
-#     # spin up websocket thread with between-queue handoff process
-#     async def df_processor(q_stream_: asyncio.Queue):
-#         """Pass DataFrames from asynchronous to synchronous queues."""
-#         while 1:
-#             df = await q_stream_.get()
-#             q_gen.put(df)
-#             if df is None:
-#                 return
-#
-#     q_stream = asyncio.Queue()
-#     df_gen_thread = Thread(
-#         target=run_dfs_stream_with_options,
-#         daemon=True,
-#         args=(endpoint, msg_to_send, df_processor, q_stream, 5)
-#     )
-#     df_gen_thread.start()
-#
-#     # initiate DataFrame generator
-#     df_gen = df_gen_from_queue(q_gen)
-#
-#     return df_gen
-
 def df_generator_ws(endpoint: str,
                     msg_to_send: dict,
                     transformations: Optional[dict] = None) \
@@ -280,8 +224,7 @@ def df_generator_ws(endpoint: str,
             q_gen.put(df)
             if df is None:
                 return
-            while q_gen.qsize() >= max_qsize: # TODO
-                await asyncio.sleep(0.01)  # TODO
+            await wait_on_qsize(q_gen, max_qsize)
 
     q_stream = asyncio.Queue()
     df_gen_thread = Thread(
