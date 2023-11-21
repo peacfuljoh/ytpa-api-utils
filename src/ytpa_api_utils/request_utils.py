@@ -24,10 +24,12 @@ def get_configs_post(endpoint: str,
 
 def df_sender_for_insert(endpoint: str,
                          preprocess_func: Callable[[pd.DataFrame], List[dict]],
-                         df_gen: Generator[pd.DataFrame, None, None]):
+                         df_gen: Generator[pd.DataFrame, None, None],
+                         print_json: bool = False):
     """Send DataFrames (from a generator) to a server-side NoSQL data store via post requests."""
     for df in df_gen:
         recs: List[dict] = preprocess_func(df)
         res = requests.post(endpoint, json=recs)
-        print(res)
+        if print_json:
+            print(res.json())
 
