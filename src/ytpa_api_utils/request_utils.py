@@ -1,5 +1,5 @@
 
-from typing import Optional, List, Callable, Generator
+from typing import Optional, List, Callable, Generator, Any
 import requests
 import json
 
@@ -22,14 +22,15 @@ def get_configs_post(endpoint: str,
 
     return recs
 
-def df_sender_for_insert(endpoint: str,
-                         preprocess_func: Callable[[pd.DataFrame], List[dict]],
-                         df_gen: Generator[pd.DataFrame, None, None],
-                         print_json: bool = False):
-    """Send DataFrames (from a generator) to a server-side NoSQL data store via post requests."""
+def df_sender(endpoint: str,
+              preprocess_func: Callable[[pd.DataFrame], Any],
+              df_gen: Generator[pd.DataFrame, None, None],
+              print_json: bool = False):
+    """
+    Send DataFrames (from a generator) to a server-side NoSQL data store via post requests.
+    """
     for df in df_gen:
-        recs: List[dict] = preprocess_func(df)
+        recs = preprocess_func(df) # recs must be JSONifiable
         res = requests.post(endpoint, json=recs)
         if print_json:
             print(res.json())
-
