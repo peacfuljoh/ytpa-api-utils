@@ -12,6 +12,6 @@ dependencies:
   - poetry=1.4.0
   - pip:
       - websockets==11.0.3
-      - ytpa-utils==0.1.15
+      - ytpa-utils==0.1.16
       - db-engines==0.1.11
 prefix: /home/nuc/miniconda3/envs/ytpa_api_utils
